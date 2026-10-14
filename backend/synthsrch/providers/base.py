@@ -24,8 +24,8 @@ class SearchRequest(BaseModel):
     count: int = Field(default=10, ge=1, le=100)
     rank_start: int = Field(default=1, ge=1, le=200)
     rank_end: int | None = Field(default=None, ge=1, le=200)
-    subtopics: list[str] = Field(default_factory=list)
-    keywords: list[str] = Field(default_factory=list)
+    subtopics: list[str] = Field(default_factory=list, max_length=10)
+    keywords: list[str] = Field(default_factory=list, max_length=20)
     keyword_mode: str = "ANY"  # ANY|ALL
 
     def effective_end(self) -> int:

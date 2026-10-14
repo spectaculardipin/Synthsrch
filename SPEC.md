@@ -155,7 +155,7 @@ Conventions: `snake_case` Python, `camelCase` TS/JSON, REST plural nouns (`GET /
 
 ## Boundaries
 
-- Always: validate provider + NIM responses as untrusted (Pydantic parse, timeout 15s search / 60s extract, 120s chat); never log full API keys (mask `tvly-***`); run `pytest -q` before commit; bind `127.0.0.1` only by default; strip images/video/scripts in extract.
+- Always: validate provider + NIM responses as untrusted (Pydantic parse, timeout 15s search / 60s extract, 120s chat); SSRF-guard every extraction URL (public http(s) only, redirects re-validated); never log full API keys (mask `tvly-***`); run `pytest -q` before commit; bind `127.0.0.1` only by default; strip images/video/scripts in extract.
 - Ask first: adding a dependency, changing SQLite schema, changing default port (8765), adding telemetry (default: none).
 - Never: commit keys/`.env`, implement V1 auto-router/fallback (explicitly deferred to V2), use search-provider extract/crawl/scrape in V1, add cloud sync/accounts, use local GPU inference in V1, edit `backend/synthsrch/static/` by hand.
 

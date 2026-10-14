@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from .chat import build_system_prompt, build_user_prompt, stream_chat
@@ -65,6 +65,15 @@ app.add_middleware(
 
 def err(code: str, message: str, status: int = 400):
     return JSONResponse(status_code=status, content={"error": {"code": code, "message": message}})
+
+
+@app.middleware("http")
+async def _security_headers(request, call_next):
+    resp = await call_next(request)
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    return resp
 
 
 @app.get("/api/health")
@@ -145,7 +154,7 @@ async def search(req: SearchRequest):
 
 
 class ExtractRequest(BaseModel):
-    url: str
+    url: str = Field(max_length=2048)
     search_id: str | None = None
     result_id: str | None = None
 
@@ -169,10 +178,10 @@ async def extract(req: ExtractRequest):
 
 
 class ChatCreate(BaseModel):
-    topic: str
-    purpose: str
-    domainKeywords: list[str] = []
-    sourceIds: list[str] = []
+    topic: str = Field(max_length=2000)
+    purpose: str = Field(max_length=2000)
+    domainKeywords: list[str] = Field(default_factory=list, max_length=20)
+    sourceIds: list[str] = Field(default_factory=list, max_length=20)
     model: str | None = None
 
 
@@ -189,7 +198,7 @@ async def create_session(body: ChatCreate):
 
 
 class ChatMessage(BaseModel):
-    query: str
+    query: str = Field(max_length=4000)
     sourceIds: list[str] | None = None
     model: str | None = None
     max_tokens: int = 4096
@@ -311,13 +320,13 @@ async def get_settings_api():
 
 
 class SettingsUpdate(BaseModel):
-    nim_api_key: str | None = None
-    nim_model: str | None = None
-    tavily_api_key: str | None = None
-    exa_api_key: str | None = None
-    serper_api_key: str | None = None
-    linkup_api_key: str | None = None
-    firecrawl_api_key: str | None = None
+    nim_api_key: str | None = Field(default=None, max_length=500)
+    nim_model: str | None = Field(default=None, max_length=200)
+    tavily_api_key: str | None = Field(default=None, max_length=500)
+    exa_api_key: str | None = Field(default=None, max_length=500)
+    serper_api_key: str | None = Field(default=None, max_length=500)
+    linkup_api_key: str | None = Field(default=None, max_length=500)
+    firecrawl_api_key: str | None = Field(default=None, max_length=500)
 
 
 @app.put("/api/settings")

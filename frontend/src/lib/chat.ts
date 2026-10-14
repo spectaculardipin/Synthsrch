@@ -14,3 +14,14 @@ export function splitCitations(text: string): CitePart[] {
   if (last < text.length) parts.push({ text: text.slice(last) });
   return parts;
 }
+
+/** Allowlist for rendering provider-supplied URLs as links: http(s) only.
+ *  Anything else (javascript:, data:, file:, …) renders as plain text. */
+export function safeUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    return u.protocol === "http:" || u.protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
+}

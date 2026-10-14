@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { modelOptions } from "../lib/types";
-import { splitCitations } from "../lib/chat";
+import { safeUrl, splitCitations } from "../lib/chat";
 import type { SearchResult } from "../lib/types";
 
 export interface ChatMessage {
@@ -121,8 +121,10 @@ export function ChatView(p: Props) {
             const cls = "shrink-0 max-w-56 border border-neutral-200 rounded-xl px-2.5 py-1.5 hover:border-neutral-800 bg-white text-left";
             return st === "error" ? (
               <button key={s.id} role="listitem" onClick={() => p.onRetryExtract(s)} title="Extraction failed — retry" className={cls}>{card}</button>
-            ) : (
+            ) : safeUrl(s.url) ? (
               <a key={s.id} role="listitem" href={s.url} target="_blank" rel="noreferrer" title={s.title} className={cls}>{card}</a>
+            ) : (
+              <span key={s.id} role="listitem" title={s.title} className={cls}>{card}</span>
             );
           })}
         </div>
