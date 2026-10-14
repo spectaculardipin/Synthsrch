@@ -27,7 +27,7 @@ It solves two problems:
   `trafilatura` (primary) / `crawl4ai` (JS-heavy fallback). Search APIs are never
   used for crawling. No images, video, or scripts reach the reader or the model.
 - **Structured chat (NIM)** — export checked sources into a session;
-  the model (curated list + free-typed custom IDs) answers grounded in the
+  the model (free-typed custom IDs) answers grounded in the
   excerpts with inline citations, streamed token-by-token. Stop button included.
 - **Persistent history** — searches, cached results/extracts, sessions, and
   settings survive restarts in a local SQLite database.
