@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Frontend deps / caches (UI ships prebuilt in backend/synthsrch/static/)
+frontend/node_modules/
+frontend/dist/
+
+# Playwright CLI session artifacts (may contain local snapshots)
+.playwright-cli/
+.playwright/
+.playwright-cli/
+
+# Local runtime data (SQLite lives in %APPDATA%/synthsrch, never in repo)
+*.db
+*.db-journal
+data/
+
+# Env / secrets — never commit keys
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Agent harness (local workflow only — not part of the product)
+.agents/
+.claude/
+.playwright/
+.playwright-cli/
+skills-lock.json
+AGENTS.md

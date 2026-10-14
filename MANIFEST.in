@@ -1,0 +1,2 @@
+recursive-include backend/synthsrch/static *
+include README.md SPEC.md install.ps1

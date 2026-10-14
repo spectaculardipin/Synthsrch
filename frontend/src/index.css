@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { @apply bg-white text-neutral-900 antialiased; }
+.card-note { @apply border border-neutral-800 rounded-[20px] bg-white p-4 shadow-sm hover:shadow-md hover:-translate-y-px transition-all cursor-pointer; }
+.input-pill { @apply border border-neutral-800 rounded-full px-5 py-2.5 w-full outline-none focus:ring-1 focus:ring-neutral-800 bg-neutral-100 placeholder:italic; }
+
+/* Streaming caret: cheapest "alive" signal while tokens arrive */
+.caret::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: currentColor;
+  animation: caret-blink 1s steps(2, start) infinite;
+}
+@keyframes caret-blink { to { visibility: hidden; } }
+
+/* Shimmer for live status lines ("Synthesizing…") */
+.shimmer { animation: shimmer-fade 1.6s ease-in-out infinite; }
+@keyframes shimmer-fade { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .caret::after, .shimmer { animation: none; }
+  .card-note { transition: none; }
+}
