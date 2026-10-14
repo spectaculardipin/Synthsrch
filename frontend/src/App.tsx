@@ -43,9 +43,9 @@ export default function App() {
   const [topic, setTopic] = useState("");
   const [purpose, setPurpose] = useState("");
   const [domainKw, setDomainKw] = useState("");
-  const [model, setModel] = useState("meta/llama-3.1-8b-instruct");
+  const [model, setModel] = useState("llama-3.1-8b-instant");
   const [models, setModels] = useState<string[]>([]);
-  const [chatLog, setChatLog] = useState<{ role: string; content: string }[]>([]);
+  const [chatLog, setChatLog] = useState<{ role: string; content: string; reasoning?: string }[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [chatSourceIds, setChatSourceIds] = useState<string[]>([]);
   const abortRef = useRef<AbortController | null>(null);
@@ -55,7 +55,7 @@ export default function App() {
   }, []);
 
   // Re-sync the model default when (re)entering chat — Settings may have
-  // changed nim_model while we were away, and the mount-once fetch is stale.
+  // changed groq_model while we were away, and the mount-once fetch is stale.
   useEffect(() => {
     if (view === "chat") refreshModels(false);
   }, [view]);
@@ -135,12 +135,18 @@ export default function App() {
     abortRef.current = ctrl;
     setStreaming(true);
     let acc = "";
+    let think = "";
     setChatLog((l) => [...l, { role: "assistant", content: "" }]);
     try {
       const resp = await fetch(`/api/sessions/${sessionId}/chat`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: q, model }), signal: ctrl.signal,
       });
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => "");
+        setChatLog((l) => [...l, { role: "assistant", content: `Request failed (HTTP ${resp.status}): ${body.slice(0, 300)}` }]);
+        return;
+      }
       const reader = resp.body?.getReader();
       if (!reader) return;
       const dec = new TextDecoder();
@@ -152,10 +158,12 @@ export default function App() {
           const payload = line.slice(6).trim();
           if (payload === "[DONE]") return;
           try {
-            const obj = JSON.parse(payload) as { delta?: string; error?: string };
+            const obj = JSON.parse(payload) as { delta?: string; reasoning?: string; error?: string };
             if (obj.error) { acc += `\n[error: ${obj.error}]`; }
             else if (obj.delta) acc += obj.delta;
-            setChatLog((l) => { const n = [...l]; n[n.length - 1] = { role: "assistant", content: acc }; return n; });
+            else if (obj.reasoning) think += obj.reasoning;
+            else continue;
+            setChatLog((l) => { const n = [...l]; n[n.length - 1] = { role: "assistant", content: acc, reasoning: think || undefined }; return n; });
           } catch { /* keep */ }
         }
       }

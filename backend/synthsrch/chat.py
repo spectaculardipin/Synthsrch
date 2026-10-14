@@ -1,5 +1,7 @@
-"""Structured chat — deterministic JSON prompt + NVIDIA NIM (OpenAI-compatible)."""
+"""Structured chat — deterministic JSON prompt + Groq (OpenAI-compatible)."""
 from __future__ import annotations
+
+from collections.abc import AsyncIterator
 
 from openai import AsyncOpenAI
 
@@ -29,32 +31,46 @@ def build_user_prompt(query: str, sources: list[SearchResult], extracts: dict[st
     return "\n".join(parts)
 
 
-def nim_client() -> AsyncOpenAI:
+def groq_client() -> AsyncOpenAI:
     s = get_settings()
-    if not s.nim_api_key:
-        raise PermissionError("nim: missing API key — add NVIDIA_API_KEY in Settings.")
-    return AsyncOpenAI(base_url=s.nim_base_url, api_key=s.nim_api_key)
+    if not s.groq_api_key:
+        raise PermissionError("groq: missing API key — add a Groq key in Settings.")
+    # Bounded waits: a stalled provider must surface as an error, never a silent hang.
+    return AsyncOpenAI(base_url=s.groq_base_url, api_key=s.groq_api_key, timeout=120.0, max_retries=1)
 
 
-async def stream_chat(model: str, system: str, user: str, max_tokens: int = 1024):
-    client = nim_client()
+async def stream_chat(
+    model: str, system: str, user: str, max_tokens: int = 4096
+) -> AsyncIterator[tuple[str, str]]:
+    """Yields ("content"|"reasoning", text) deltas.
+
+    Reasoning models (e.g. gpt-oss, qwq) think for many seconds before the first
+    answer token; forwarding their thinking keeps the UI alive instead of showing
+    a dead spinner.
+    """
+    client = groq_client()
     stream = await client.chat.completions.create(
-        model=model or get_settings().nim_model,
+        model=model or get_settings().groq_model,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
         max_tokens=max_tokens,
         stream=True,
     )
     async for chunk in stream:
         try:
-            delta = chunk.choices[0].delta.content or ""
+            delta = chunk.choices[0].delta
+            content = delta.content or ""
+            reasoning = getattr(delta, "reasoning_content", None) or getattr(delta, "reasoning", None) or ""
         except Exception:
-            delta = ""
-        if delta:
-            yield delta
+            continue
+        if content:
+            yield ("content", content)
+        if reasoning:
+            yield ("reasoning", reasoning if isinstance(reasoning, str) else str(reasoning))
 
 
-async def complete_chat(model: str, system: str, user: str, max_tokens: int = 1024) -> str:
+async def complete_chat(model: str, system: str, user: str, max_tokens: int = 4096) -> str:
     parts: list[str] = []
-    async for d in stream_chat(model, system, user, max_tokens):
-        parts.append(d)
+    async for kind, text in stream_chat(model, system, user, max_tokens):
+        if kind == "content":
+            parts.append(text)
     return "".join(parts)

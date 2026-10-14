@@ -33,9 +33,9 @@ class Settings(BaseSettings):
     data_dir: Path = Field(default_factory=default_data_dir)
     db_path: Path = Field(default_factory=default_db_path)
 
-    nim_base_url: str = "https://integrate.api.nvidia.com/v1"
-    nim_api_key: str = ""
-    nim_model: str = "meta/llama-3.1-8b-instruct"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.1-8b-instant"
 
     tavily_api_key: str = ""
     exa_api_key: str = ""
@@ -47,16 +47,12 @@ class Settings(BaseSettings):
     search_timeout_s: float = 15.0
     extract_timeout_s: float = 15.0
 
-    NIM_MODELS: list[str] = [
-        "meta/llama-3.1-8b-instruct",
-        "meta/llama-3.1-70b-instruct",
-        "meta/llama-3.1-405b-instruct",
-        "nvidia/llama-3.1-nemotron-70b-instruct",
-        "mistralai/mixtral-8x22b-instruct-v0.1",
-        "qwen/qwen2.5-72b-instruct",
-        "google/gemma-2-9b-it",
+    GROQ_MODELS: list[str] = [
+        "llama-3.1-8b-instant",
+        "llama-3.3-70b-versatile",
         "openai/gpt-oss-20b",
         "openai/gpt-oss-120b",
+        "qwen/qwen3.8-27b",
     ]
 
 
