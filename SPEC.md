@@ -12,7 +12,7 @@ Build **Synthsrch**, a local-first, open-source search + synthesis app for Windo
 **V1 scope decisions (per user, 2026-10-14):**
 
 - All **5 search providers configurable** in V1: Tavily, Exa, Serper, Linkup, Firecrawl. User picks **one provider per search** via selector. **No auto-router/fallback in V1** (explicit non-goal; planned V2).
-- **LLM = Groq only** (`https://api.groq.com/openai/v1`, OpenAI-compatible). User can **select from a range of Groq models** + custom model string.
+- **LLM = NIM only** (`https://integrate.api.nvidia.com/v1`, OpenAI-compatible). User can **select from a range of NIM models** + custom model string.
 - **Persistent history** in local SQLite (searches, chats, settings survive restarts).
 
 **User stories:**
@@ -20,9 +20,9 @@ Build **Synthsrch**, a local-first, open-source search + synthesis app for Windo
 - US1: I run `PS C:\Users\ghimi> synthsrch` and a browser tab opens with Synthsrch; no Docker, no manual server steps.
 - US2: I type a query, choose provider + result count + rank bracket (e.g. 20–40), see note-style rounded cards (publisher + title + `#rank` + checkbox), click a card to read clean raw text (no images/video).
 - US3: I add sub-topics / keywords with ANY|ALL match to filter within current results.
-- US4: I check 2–5 cards, export to chat with `{topic, purpose, domainKeywords}`, chat with Groq grounded on those sources, add/remove sources mid-chat.
+- US4: I check 2–5 cards, export to chat with `{topic, purpose, domainKeywords}`, chat with NIM grounded on those sources, add/remove sources mid-chat.
 - US5: I see my past searches and chat sessions in History, persisted across restarts.
-- US6: I paste my own keys for all 5 search providers + Groq key in Settings; keys never leave disk except to the chosen provider.
+- US6: I paste my own keys for all 5 search providers + NIM key in Settings; keys never leave disk except to the chosen provider.
 
 ## Capability Map
 
@@ -33,7 +33,7 @@ Single initiative, five independently testable modules:
 | `launcher` | `synthsrch` CLI, local server lifecycle, browser open | — |
 | `search-providers` | 5 provider adapters + manual selector, unified result schema | `launcher` |
 | `extract` | Clean text extraction local-only (httpx + trafilatura primary, crawl4ai fallback; search APIs never used for crawl/extract) | `search-providers` |
-| `structured-chat` | JSON-prompted Groq chat grounded on selected sources | `extract` |
+| `structured-chat` | JSON-prompted NIM chat grounded on selected sources | `extract` |
 | `history-settings` | Persistent SQLite history + key/model settings UI | `launcher` |
 
 Build order: `launcher` → `history-settings` → `search-providers` → `extract` → `structured-chat`.
@@ -43,10 +43,10 @@ Build order: `launcher` → `history-settings` → `search-providers` → `extra
 
 ## Tech Stack
 
-- **Backend:** Python 3.11+, FastAPI `>=0.115`, Uvicorn `>=0.30`, httpx `>=0.27`, Pydantic `>=2.7` + pydantic-settings, SQLAlchemy `>=2.0` + aiosqlite, trafilatura `>=1.10` (extract primary), crawl4ai `>=0.6` (extract fallback for JS-heavy pages), `openai>=1.40` SDK pointed at Groq, python-keyring (optional OS keyring, fallback encrypted file).
+- **Backend:** Python 3.11+, FastAPI `>=0.115`, Uvicorn `>=0.30`, httpx `>=0.27`, Pydantic `>=2.7` + pydantic-settings, SQLAlchemy `>=2.0` + aiosqlite, trafilatura `>=1.10` (extract primary), crawl4ai `>=0.6` (extract fallback for JS-heavy pages), `openai>=1.40` SDK pointed at NIM, python-keyring (optional OS keyring, fallback encrypted file).
 - **Provider rule:** search APIs (Tavily/Exa/Serper/Linkup/Firecrawl) are used for **searching only** (`title/url/snippet/score`). Never call provider extract/crawl/scrape (`include_raw_content`, `/extract`, `/contents`, `scrapeOptions`) in V1.
-- **Frontend:** Vite `>=6`, React `18` + TypeScript `~5.5`, Tailwind `~3.4`, fetch + SSE for Groq streaming. Built to `backend/synthsrch/static/` and served by FastAPI (single process, low RAM).
-- **LLM:** Groq Cloud, `base_url=https://api.groq.com/openai/v1`, `POST /v1/chat/completions`, `GET /v1/models`. No local inference in V1.
+- **Frontend:** Vite `>=6`, React `18` + TypeScript `~5.5`, Tailwind `~3.4`, fetch + SSE for NIM streaming. Built to `backend/synthsrch/static/` and served by FastAPI (single process, low RAM).
+- **LLM:** NVIDIA NIM cloud, `base_url=https://integrate.api.nvidia.com/v1`, `POST /v1/chat/completions`, `GET /v1/models`. No local inference in V1.
 - **DB:** SQLite file at `%APPDATA%\synthsrch\synthsrch.db` (fallback `~/.synthsrch/synthsrch.db`).
 - **Packaging:** `pyproject.toml` with `console_scripts synthsrch`, `pipx install .` supported, `install.ps1` for PATH.
 
@@ -64,7 +64,7 @@ pipx install .
 synthsrch
 synthsrch --port 8765 --no-browser
 synthsrch --help
-synthsrch doctor        # checks python version, port, db path, Groq reachability
+synthsrch doctor        # checks python version, port, db path, NIM reachability
 
 # dev
 python -m synthsrch --port 8765          # backend dev (serves API + static if built)
@@ -88,13 +88,13 @@ backend/
   synthsrch/
     __main__.py                → CLI (port pick, uvicorn run, webbrowser.open)
     app.py                     → FastAPI app, static mount, CORS localhost-only
-    config.py                  → pydantic-settings, db path, Groq base_url
+    config.py                  → pydantic-settings, db path, NIM base_url
     db.py / models.py          → SQLAlchemy models, session
     providers/
       base.py                  → Unified SearchResult + ProviderAdapter interface
       tavily.py exa.py serper.py linkup.py firecrawl.py
     extract.py                 → local-only clean text (httpx fetch + trafilatura primary, crawl4ai fallback; no provider extract)
-    chat.py                    → JSON prompt builder + Groq streaming via openai SDK
+    chat.py                    → JSON prompt builder + NIM streaming via openai SDK
     static/                    → built frontend (generated, committed for v1)
 frontend/
   src/components/ SearchBar/ ResultCard/ FilterPanel/ ChatPanel/ Settings/
@@ -102,7 +102,7 @@ frontend/
 tests/backend/                 → test_filter_slice, test_chat_prompt, test_providers_extract, test_settings_persist, test_search_upsert
 tests/frontend/  (vitest)      → filter ANY|ALL, rank slice
 install.ps1                    → Windows PATH + first-run helper
-docs/                          → provider key links, Groq model list
+docs/                          → provider key links, NIM model list
 ```
 
 ## Code Style
@@ -151,11 +151,11 @@ Conventions: `snake_case` Python, `camelCase` TS/JSON, REST plural nouns (`GET /
 - **Backend (pytest):** adapter normalization per provider (mocked httpx, search-only — assert no extract/crawl params sent), rank-slice logic (`rank_start/rank_end`), keyword ANY|ALL filter, local extract strips `<img>/<video>/nav` via trafilatura, crawl4ai fallback mocked, chat prompt contains `topic/purpose/domainKeywords/sources`, settings persist + hydrate across restarts, repeat-search upsert. Target ≥70% on `providers/`, `extract.py`, `chat.py`.
 - **Frontend (vitest):** filter reducer, rank badge, checkbox selection set, settings key-masking.
 - **Manual E2E per slice:** `synthsrch` → search (each of 5 providers once) → open card text → export → chat streams → restart → history intact.
-- **No live-key CI:** live provider/Groq tests behind `SYNTHSRCH_LIVE=1`, never in default run.
+- **No live-key CI:** live provider/NIM tests behind `SYNTHSRCH_LIVE=1`, never in default run.
 
 ## Boundaries
 
-- Always: validate provider + Groq responses as untrusted (Pydantic parse, timeout 15s search / 60s extract, 120s chat); never log full API keys (mask `tvly-***`); run `pytest -q` before commit; bind `127.0.0.1` only by default; strip images/video/scripts in extract.
+- Always: validate provider + NIM responses as untrusted (Pydantic parse, timeout 15s search / 60s extract, 120s chat); never log full API keys (mask `tvly-***`); run `pytest -q` before commit; bind `127.0.0.1` only by default; strip images/video/scripts in extract.
 - Ask first: adding a dependency, changing SQLite schema, changing default port (8765), adding telemetry (default: none).
 - Never: commit keys/`.env`, implement V1 auto-router/fallback (explicitly deferred to V2), use search-provider extract/crawl/scrape in V1, add cloud sync/accounts, use local GPU inference in V1, edit `backend/synthsrch/static/` by hand.
 
@@ -163,7 +163,7 @@ Conventions: `snake_case` Python, `camelCase` TS/JSON, REST plural nouns (`GET /
 
 ### 1. Launcher (`launcher`)
 
-- `synthsrch` picks port (default 8765, next-free if busy), starts Uvicorn on `127.0.0.1`, opens default browser. `--no-browser` skips open. `doctor` reports python/port/db/Groq key presence.
+- `synthsrch` picks port (default 8765, next-free if busy), starts Uvicorn on `127.0.0.1`, opens default browser. `--no-browser` skips open. `doctor` reports python/port/db/NIM key presence.
 - Success: cold `synthsrch` → usable UI in <10s on HDD-class laptop (excluding npm install).
 
 ### 2. Search (`search-providers`)
@@ -184,13 +184,13 @@ Conventions: `snake_case` Python, `camelCase` TS/JSON, REST plural nouns (`GET /
 - Select via checkboxes → `Export N → Chat` creates session with header form: `topic*`, `purpose*`, `domainKeywords[]`, source list (add/remove anytime), model input with suggestions (see §5).
 - System prompt built deterministically:
   `You are Synthsrch synthesiser. Topic:{topic}. Purpose:{purpose}. DomainKeywords:{...}. Ground EVERY claim in [S1..Sn] excerpts; cite [Sn]; if sources disagree say so; if insufficient say so.`
-  User query + excerpts (truncated to model context) → Groq `stream:true` SSE (content + reasoning deltas). Follow-ups retain same header unless edited.
+  User query + excerpts (truncated to model context) → NIM `stream:true` SSE (content + reasoning deltas). Follow-ups retain same header unless edited.
 - Persist `sessions/messages` in SQLite.
 
-### 5. Groq models (`history-settings` part)
+### 5. NIM models (`history-settings` part)
 
-- Settings fields: `GROQ_API_KEY`, `GROQ_MODEL` text input with datalist suggestions + custom allowed, `GROQ_BASE_URL` (default cloud). V1 curated list (all via same `/v1/chat/completions`):
-  `llama-3.1-8b-instant` (fast/default), `llama-3.3-70b-versatile`, `openai/gpt-oss-20b`, `openai/gpt-oss-120b`, `qwen/qwen3.8-27b` + `custom…`. `GET /v1/models` validates at save; per-model `max_tokens` default 4096 (shared with reasoning budget on thinking models).
+- Settings fields: `NIM_API_KEY`, `NIM_MODEL` text input with datalist suggestions + custom allowed, `NIM_BASE_URL` (default cloud). V1 curated list, IDs verified against the live catalog (all via same `/v1/chat/completions`):
+  `nvidia/nemotron-3.5-lightning-30b-a3b` (fast/default, reasoning), `openai/gpt-oss-20b`, `mistralai/mistral-large-2-instruct`, `mistralai/mixtral-8x22b-v0.1`, `nvidia/llama-3.1-nemotron-70b-instruct`, `mistralai/mistral-7b-instruct-v0.3` + `custom…`. `GET /v1/models` validates at save; per-model `max_tokens` default 4096 (shared with reasoning budget on thinking models).
 - Chat header and Settings stay in sync on the selected model.
 
 ### 6. History + Settings persistence
@@ -203,7 +203,7 @@ Conventions: `snake_case` Python, `camelCase` TS/JSON, REST plural nouns (`GET /
 - [ ] Each of 5 providers returns cards with correct publisher/title/rank; count + rank bracket (incl. 20–40 where provider allows) slices correctly.
 - [ ] Card click shows local-only text extract (`via trafilatura|crawl4ai`), no images/video tags in DOM, no provider extract API called.
 - [ ] Keyword ANY returns union, ALL returns intersection (unit-tested).
-- [ ] Export 3 sources → chat streams cited Groq answer; changing model in header changes `model` in Groq request.
+- [ ] Export 3 sources → chat streams cited NIM answer; changing model in header changes `model` in NIM request.
 - [ ] Restart preserves history; missing-key provider shows clear error, does NOT call another provider.
 - [ ] `pytest -q` + `npm test -- --run` + `npm run build` green.
 
@@ -211,7 +211,7 @@ Conventions: `snake_case` Python, `camelCase` TS/JSON, REST plural nouns (`GET /
 
 - Q2: DB location — approve `%APPDATA%\synthsrch\` (vs repo-local `./data/`)?
 - Q3: For rank brackets beyond a provider cap (e.g. Tavily 41–60), is multi-query fan-out acceptable in V1, or cap UI at provider max with notice?
-- Q4: Extract length cap per source for Groq context (e.g. 6k chars) — acceptable default?
+- Q4: Extract length cap per source for NIM context (e.g. 6k chars) — acceptable default?
 
 ---
-*Provider docs: Tavily search/extract, Exa search/contents, Firecrawl search/scrape, Serper, Linkup `/v1/search`; Groq OpenAI-compatible `/v1/chat/completions` + `/v1/models`.*
+*Provider docs: Tavily search/extract, Exa search/contents, Firecrawl search/scrape, Serper, Linkup `/v1/search`; NIM OpenAI-compatible `/v1/chat/completions` + `/v1/models`.*

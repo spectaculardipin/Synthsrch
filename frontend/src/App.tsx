@@ -43,7 +43,7 @@ export default function App() {
   const [topic, setTopic] = useState("");
   const [purpose, setPurpose] = useState("");
   const [domainKw, setDomainKw] = useState("");
-  const [model, setModel] = useState("llama-3.1-8b-instant");
+  const [model, setModel] = useState("nvidia/nemotron-3.5-lightning-30b-a3b");
   const [models, setModels] = useState<string[]>([]);
   const [chatLog, setChatLog] = useState<{ role: string; content: string; reasoning?: string }[]>([]);
   const [streaming, setStreaming] = useState(false);
@@ -55,7 +55,7 @@ export default function App() {
   }, []);
 
   // Re-sync the model default when (re)entering chat — Settings may have
-  // changed groq_model while we were away, and the mount-once fetch is stale.
+  // changed nim_model while we were away, and the mount-once fetch is stale.
   useEffect(() => {
     if (view === "chat") refreshModels(false);
   }, [view]);

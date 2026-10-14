@@ -1,4 +1,4 @@
-"""Groq provider: bounded client, reasoning+content stream protocol, chat persistence."""
+"""NIM chat: bounded client, reasoning+content stream protocol, chat persistence."""
 from fastapi.testclient import TestClient
 
 import synthsrch.app as appmod
@@ -13,27 +13,27 @@ def _isolate(tmp_path):
     s.data_dir = tmp_path / "data"
     s.db_path = tmp_path / "data" / "t.db"
     s.data_dir.mkdir(parents=True, exist_ok=True)
-    s.groq_api_key = "gsk-test"
+    s.nim_api_key = "nvapi-test"
     import synthsrch.db as dbmod
     dbmod._engine = None
     dbmod._SessionFactory = None
 
 
-def test_groq_client_is_bounded(tmp_path):
+def test_nim_client_is_bounded(tmp_path):
     _isolate(tmp_path)
-    c = chatmod.groq_client()
+    c = chatmod.nim_client()
     assert float(c.timeout) == 120.0
     assert c.max_retries == 1
-    assert "groq.com" in str(c.base_url)
+    assert "nvidia.com" in str(c.base_url)
 
 
-def test_groq_client_needs_key(tmp_path):
+def test_nim_client_needs_key(tmp_path):
     _isolate(tmp_path)
-    cfg.get_settings().groq_api_key = ""
+    cfg.get_settings().nim_api_key = ""
     try:
-        chatmod.groq_client()
+        chatmod.nim_client()
     except PermissionError as e:
-        assert "Groq" in str(e)
+        assert "NIM" in str(e)
     else:
         raise AssertionError("expected PermissionError")
 
@@ -56,7 +56,7 @@ def test_stream_forwards_reasoning_and_content(tmp_path, monkeypatch):
             self.choices = [Choice(Delta(**kw))]
 
     async def fake_create(**kw):
-        assert kw["model"] == "llama-3.1-8b-instant"
+        assert kw["model"] == "nvidia/nemotron-3.5-lightning-30b-a3b"
         assert kw["stream"] is True
 
         async def gen():
@@ -75,15 +75,15 @@ def test_stream_forwards_reasoning_and_content(tmp_path, monkeypatch):
     class FakeClient:
         chat = FakeChat()
 
-    monkeypatch.setattr(chatmod, "groq_client", lambda: FakeClient())
+    monkeypatch.setattr(chatmod, "nim_client", lambda: FakeClient())
     import asyncio
 
     async def collect():
-        return [(k, t) async for k, t in chatmod.stream_chat("llama-3.1-8b-instant", "s", "u")]
+        return [(k, t) async for k, t in chatmod.stream_chat("nvidia/nemotron-3.5-lightning-30b-a3b", "s", "u")]
 
     out = asyncio.run(collect())
     assert out == [("reasoning", "thinking…"), ("content", "Hello"), ("content", " world")]
-    assert asyncio.run(chatmod.complete_chat("llama-3.1-8b-instant", "s", "u")) == "Hello world"
+    assert asyncio.run(chatmod.complete_chat("nvidia/nemotron-3.5-lightning-30b-a3b", "s", "u")) == "Hello world"
 
 
 def test_chat_persists_user_message(tmp_path, monkeypatch):

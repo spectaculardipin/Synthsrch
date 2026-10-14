@@ -90,9 +90,9 @@ export function ChatView(p: Props) {
               <input className="border border-neutral-300 rounded-lg px-2 py-1.5 w-full mt-1 focus:border-neutral-800 outline-none" value={p.domainKw} onChange={(e) => p.setDomainKw(e.target.value)} placeholder="comma, separated" />
             </label>
             <label className="block sm:col-span-3">Model (custom allowed)
-              <input list="groq-model-list" className="border border-neutral-300 rounded-lg px-2 py-1.5 w-full mt-1 focus:border-neutral-800 outline-none font-mono text-xs" value={p.model}
-                onChange={(e) => p.setModel(e.target.value)} placeholder="type or pick a Groq model" aria-label="Groq model (custom allowed)" />
-              <datalist id="groq-model-list">
+              <input list="nim-model-list" className="border border-neutral-300 rounded-lg px-2 py-1.5 w-full mt-1 focus:border-neutral-800 outline-none font-mono text-xs" value={p.model}
+                onChange={(e) => p.setModel(e.target.value)} placeholder="type or pick a NIM model" aria-label="NIM model (custom allowed)" />
+              <datalist id="nim-model-list">
                 {modelOptions(p.models, p.model).map((m) => <option key={m} value={m} />)}
               </datalist>
             </label>

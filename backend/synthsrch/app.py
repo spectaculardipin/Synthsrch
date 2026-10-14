@@ -69,12 +69,12 @@ def err(code: str, message: str, status: int = 400):
 @app.get("/api/health")
 async def health():
     s = get_settings()
-    return {"ok": True, "db": str(s.db_path), "groq_model": s.groq_model}
+    return {"ok": True, "db": str(s.db_path), "nim_model": s.nim_model}
 
 
 @app.get("/api/models")
 async def models():
-    return {"models": get_settings().GROQ_MODELS, "default": get_settings().groq_model}
+    return {"models": get_settings().NIM_MODELS, "default": get_settings().nim_model}
 
 
 class SearchResponse(BaseModel):
@@ -181,7 +181,7 @@ async def create_session(body: ChatCreate):
     async with session_factory()() as db:
         db.add(Session(id=sid, topic=body.topic, purpose=body.purpose,
                        domain_keywords=json.dumps(body.domainKeywords),
-                       model=body.model or get_settings().groq_model,
+                       model=body.model or get_settings().nim_model,
                        source_ids=json.dumps(body.sourceIds)))
         await db.commit()
     return {"session_id": sid}
@@ -213,7 +213,7 @@ async def chat(sid: str, body: ChatMessage):
                 extracts[row.id] = row.extract_text[: get_settings().extract_max_chars]
         topic, purpose = sess.topic, sess.purpose
         kws = json.loads(sess.domain_keywords or "[]")
-        model = body.model or sess.model or get_settings().groq_model
+        model = body.model or sess.model or get_settings().nim_model
         db.add(Message(id=f"m-{uuid.uuid4().hex[:10]}", session_id=sid, role="user", content=body.query))
         await db.commit()
 
@@ -232,7 +232,7 @@ async def chat(sid: str, body: ChatMessage):
         except PermissionError as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'error': f'groq error: {e}'})}\n\n"
+            yield f"data: {json.dumps({'error': f'nim error: {e}'})}\n\n"
         finally:
             text = "".join(full)
             if text:
@@ -263,21 +263,21 @@ async def get_settings_api():
         return (v[:4] + "***" + v[-2:]) if len(v) > 8 else ("***" if v else "")
 
     return {
-        "groq_base_url": s.groq_base_url, "groq_model": s.groq_model, "models": s.GROQ_MODELS,
+        "nim_base_url": s.nim_base_url, "nim_model": s.nim_model, "models": s.NIM_MODELS,
         "keys_present": {
-            "groq": bool(s.groq_api_key), "tavily": bool(s.tavily_api_key), "exa": bool(s.exa_api_key),
+            "nim": bool(s.nim_api_key), "tavily": bool(s.tavily_api_key), "exa": bool(s.exa_api_key),
             "serper": bool(s.serper_api_key), "linkup": bool(s.linkup_api_key), "firecrawl": bool(s.firecrawl_api_key),
         },
         "keys_masked": {
-            "groq": mask(s.groq_api_key), "tavily": mask(s.tavily_api_key), "exa": mask(s.exa_api_key),
+            "nim": mask(s.nim_api_key), "tavily": mask(s.tavily_api_key), "exa": mask(s.exa_api_key),
             "serper": mask(s.serper_api_key), "linkup": mask(s.linkup_api_key), "firecrawl": mask(s.firecrawl_api_key),
         },
     }
 
 
 class SettingsUpdate(BaseModel):
-    groq_api_key: str | None = None
-    groq_model: str | None = None
+    nim_api_key: str | None = None
+    nim_model: str | None = None
     tavily_api_key: str | None = None
     exa_api_key: str | None = None
     serper_api_key: str | None = None

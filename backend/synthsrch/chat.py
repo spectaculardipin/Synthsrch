@@ -1,4 +1,4 @@
-"""Structured chat — deterministic JSON prompt + Groq (OpenAI-compatible)."""
+"""Structured chat — deterministic JSON prompt + NVIDIA NIM (OpenAI-compatible)."""
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
@@ -31,12 +31,12 @@ def build_user_prompt(query: str, sources: list[SearchResult], extracts: dict[st
     return "\n".join(parts)
 
 
-def groq_client() -> AsyncOpenAI:
+def nim_client() -> AsyncOpenAI:
     s = get_settings()
-    if not s.groq_api_key:
-        raise PermissionError("groq: missing API key — add a Groq key in Settings.")
+    if not s.nim_api_key:
+        raise PermissionError("nim: missing API key — add an NVIDIA NIM key in Settings.")
     # Bounded waits: a stalled provider must surface as an error, never a silent hang.
-    return AsyncOpenAI(base_url=s.groq_base_url, api_key=s.groq_api_key, timeout=120.0, max_retries=1)
+    return AsyncOpenAI(base_url=s.nim_base_url, api_key=s.nim_api_key, timeout=120.0, max_retries=1)
 
 
 async def stream_chat(
@@ -44,13 +44,13 @@ async def stream_chat(
 ) -> AsyncIterator[tuple[str, str]]:
     """Yields ("content"|"reasoning", text) deltas.
 
-    Reasoning models (e.g. gpt-oss, qwq) think for many seconds before the first
+    Reasoning models (e.g. Nemotron, gpt-oss) think for many seconds before the first
     answer token; forwarding their thinking keeps the UI alive instead of showing
     a dead spinner.
     """
-    client = groq_client()
+    client = nim_client()
     stream = await client.chat.completions.create(
-        model=model or get_settings().groq_model,
+        model=model or get_settings().nim_model,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
         max_tokens=max_tokens,
         stream=True,

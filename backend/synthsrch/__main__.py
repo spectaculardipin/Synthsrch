@@ -44,7 +44,7 @@ def cmd_doctor() -> int:
     print(f"python: {sys.version.split()[0]}")
     print(f"db: {s.db_path} exists={s.db_path.exists()}")
     print(f"host/port: {s.host}/{s.port}")
-    print(f"groq: {s.groq_base_url} model={s.groq_model} key={'set' if s.groq_api_key else 'MISSING'}")
+    print(f"nim: {s.nim_base_url} model={s.nim_model} key={'set' if s.nim_api_key else 'MISSING'}")
     for name in ("tavily", "exa", "serper", "linkup", "firecrawl"):
         has = bool(getattr(s, f"{name}_api_key"))
         print(f"{name}: {'set' if has else 'MISSING'}")

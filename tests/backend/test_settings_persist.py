@@ -25,11 +25,11 @@ def _fresh_client(tmp_path, monkeypatch):
 
 def test_put_persists_and_hydrates_after_restart(tmp_path, monkeypatch):
     c = _fresh_client(tmp_path, monkeypatch)
-    r = c.put("/api/settings", json={"tavily_api_key": "tvly-testkey123", "groq_model": "llama-3.3-70b-versatile"})
+    r = c.put("/api/settings", json={"tavily_api_key": "tvly-testkey123", "nim_model": "mistralai/mistral-large-2-instruct"})
     assert r.status_code == 200
     body = r.json()
     assert body["keys_present"]["tavily"] is True  # PUT echoes state
-    assert body["groq_model"] == "llama-3.3-70b-versatile"
+    assert body["nim_model"] == "mistralai/mistral-large-2-instruct"
 
     # Simulate restart: drop cached Settings + engine, re-hydrate from DB file.
     cfg.get_settings.cache_clear()

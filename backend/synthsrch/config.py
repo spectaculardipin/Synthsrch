@@ -33,9 +33,9 @@ class Settings(BaseSettings):
     data_dir: Path = Field(default_factory=default_data_dir)
     db_path: Path = Field(default_factory=default_db_path)
 
-    groq_base_url: str = "https://api.groq.com/openai/v1"
-    groq_api_key: str = ""
-    groq_model: str = "llama-3.1-8b-instant"
+    nim_base_url: str = "https://integrate.api.nvidia.com/v1"
+    nim_api_key: str = ""
+    nim_model: str = "nvidia/nemotron-3.5-lightning-30b-a3b"
 
     tavily_api_key: str = ""
     exa_api_key: str = ""
@@ -47,12 +47,14 @@ class Settings(BaseSettings):
     search_timeout_s: float = 15.0
     extract_timeout_s: float = 15.0
 
-    GROQ_MODELS: list[str] = [
-        "llama-3.1-8b-instant",
-        "llama-3.3-70b-versatile",
+    # IDs verified against the live NIM catalog (Oct 2026). Custom IDs still allowed.
+    NIM_MODELS: list[str] = [
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
         "openai/gpt-oss-20b",
-        "openai/gpt-oss-120b",
-        "qwen/qwen3.8-27b",
+        "mistralai/mistral-large-2-instruct",
+        "mistralai/mixtral-8x22b-v0.1",
+        "nvidia/llama-3.1-nemotron-70b-instruct",
+        "mistralai/mistral-7b-instruct-v0.3",
     ]
 
 
