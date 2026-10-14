@@ -1,6 +1,7 @@
 """FastAPI app — localhost only, serves API + static frontend build."""
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 import uuid
@@ -194,6 +195,25 @@ class ChatMessage(BaseModel):
     max_tokens: int = 4096
 
 
+async def _gap_fill_extracts(pairs: list[tuple[str, str]]) -> list[tuple[str, str, str]]:
+    """Fetch missing source texts via the fast local path, in parallel.
+
+    Returns [(result_id, text, via)] for successes only; failures are skipped
+    so one bad URL never blocks the chat.
+    """
+    ex = LocalExtractor()
+
+    async def one(rid: str, url: str) -> tuple[str, str, str] | None:
+        try:
+            text, via = await ex.extract(url, allow_fallback=False)
+            return (rid, text, via)
+        except Exception:
+            return None
+
+    done = await asyncio.gather(*(one(rid, url) for rid, url in pairs))
+    return [d for d in done if d is not None]
+
+
 @app.post("/api/sessions/{sid}/chat")
 async def chat(sid: str, body: ChatMessage):
     async with session_factory()() as db:
@@ -203,6 +223,7 @@ async def chat(sid: str, body: ChatMessage):
         src_ids = body.sourceIds if body.sourceIds is not None else json.loads(sess.source_ids or "[]")
         sources: list[SearchResult] = []
         extracts: dict[str, str] = {}
+        missing: list[tuple[str, str]] = []  # (result_id, url) without cached text
         for rid in src_ids[:10]:
             row = await db.get(ResultCache, rid)
             if not row:
@@ -211,10 +232,24 @@ async def chat(sid: str, body: ChatMessage):
                                         rank=row.rank, score=row.score, snippet=row.snippet))
             if row.extract_text:
                 extracts[row.id] = row.extract_text[: get_settings().extract_max_chars]
+            elif row.url:
+                missing.append((row.id, row.url))
         topic, purpose = sess.topic, sess.purpose
         kws = json.loads(sess.domain_keywords or "[]")
         model = body.model or sess.model or get_settings().nim_model
         db.add(Message(id=f"m-{uuid.uuid4().hex[:10]}", session_id=sid, role="user", content=body.query))
+        # Safety net: guarantee excerpts for every source. The UI pre-extracts in
+        # the background after export, but a fast Send (or reload) can beat it.
+        # Fast path only (no browser fallback) to bound chat latency; failures
+        # fall back to the search snippet for that source.
+        if missing:
+            filled = await _gap_fill_extracts(missing)
+            for rid, text, via in filled:
+                extracts[rid] = text[: get_settings().extract_max_chars]
+                row = await db.get(ResultCache, rid)
+                if row:
+                    row.extract_text = extracts[rid]
+                    row.extract_via = via
         await db.commit()
 
     system = build_system_prompt(topic, purpose, kws, len(sources))

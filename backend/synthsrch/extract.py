@@ -57,13 +57,19 @@ class LocalExtractor:
                 raise RuntimeError("crawl4ai returned empty content")
             return text
 
-    async def extract(self, url: str, max_chars: int | None = None) -> tuple[str, str]:
-        """Returns (text, via). Raises on failure."""
+    async def extract(self, url: str, max_chars: int | None = None, allow_fallback: bool = True) -> tuple[str, str]:
+        """Returns (text, via). Raises on failure.
+
+        allow_fallback=False restricts to the fast trafilatura path (bounded,
+        no browser) — used for on-demand gap fills inside latency-sensitive flows.
+        """
         cap = max_chars or get_settings().extract_max_chars
         html = await self.fetch_html(url)
         text = self.to_text_trafilatura(html, url)
         via = "trafilatura"
-        if not text or len(text.strip()) < 200:
+        if allow_fallback and (not text or len(text.strip()) < 200):
             text = await self.to_text_crawl4ai(url)
             via = "crawl4ai"
+        if not text:
+            raise RuntimeError("trafilatura returned empty content")
         return text[:cap], via

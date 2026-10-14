@@ -158,7 +158,9 @@ key (masked) and blanks never overwrite saved values.
    keywords (`ANY`|`ALL`) / sub-topic. Results arrive as note cards.
 2. **Read** — click a card for clean text (`via trafilatura|crawl4ai`, char count
    shown). Filter further with *Search within these results* (free, local).
-3. **Synthesize** — check 2–5 cards → **Export → Chat**. Set topic, purpose,
+3. **Synthesize** — check 2–5 cards → **Export → Chat**. Full text for every
+   source is extracted automatically in the background (✓/…/✗ per source in
+   the rail; Send unlocks when ready, failures retryable). Set topic, purpose,
    domain keywords, and model; ask questions. Answers cite `[S1]`…`[Sn]`,
    mapped to the sources rail above the thread.
 4. **Resume** — **History** lists past searches and sessions across restarts.

@@ -182,6 +182,7 @@ Conventions: `snake_case` Python, `camelCase` TS/JSON, REST plural nouns (`GET /
 ### 4. Structured chat (`structured-chat`)
 
 - Select via checkboxes → `Export N → Chat` creates session with header form: `topic*`, `purpose*`, `domainKeywords[]`, source list (add/remove anytime), model input with suggestions (see §5).
+- Export triggers background full-text extraction for every source (full pipeline); Send unlocks when all resolve (errors retryable). The chat endpoint additionally gap-fills any source still missing text at send time (fast path), so the prompt always carries excerpts, never titles alone.
 - System prompt built deterministically:
   `You are Synthsrch synthesiser. Topic:{topic}. Purpose:{purpose}. DomainKeywords:{...}. Ground EVERY claim in [S1..Sn] excerpts; cite [Sn]; if sources disagree say so; if insufficient say so.`
   User query + excerpts (truncated to model context) → NIM `stream:true` SSE (content + reasoning deltas). Follow-ups retain same header unless edited.

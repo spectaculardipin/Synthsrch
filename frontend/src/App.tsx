@@ -48,6 +48,7 @@ export default function App() {
   const [chatLog, setChatLog] = useState<{ role: string; content: string; reasoning?: string }[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [chatSourceIds, setChatSourceIds] = useState<string[]>([]);
+  const [extractStatus, setExtractStatus] = useState<Record<string, "working" | "done" | "error">>({});
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -112,6 +113,16 @@ export default function App() {
     setSelected((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   }
 
+  async function runExtract(s: SearchResult) {
+    setExtractStatus((m) => ({ ...m, [s.id]: "working" }));
+    try {
+      await api.extract(s.url, s.id);
+      setExtractStatus((m) => ({ ...m, [s.id]: "done" }));
+    } catch {
+      setExtractStatus((m) => ({ ...m, [s.id]: "error" }));
+    }
+  }
+
   async function exportToChat() {
     const ids = [...selected];
     if (!ids.length) return;
@@ -119,7 +130,13 @@ export default function App() {
     const s = await api.createSession({ topic: topic || query, purpose: purpose || "Synthesize selected sources", domainKeywords: dk, sourceIds: ids, model });
     setSessionId(s.session_id);
     setChatSourceIds(ids);
-    setChatLog([{ role: "system", content: `Session ${s.session_id} — ${ids.length} sources attached.` }]);
+    // Background pre-extraction: full text (trafilatura → crawl4ai) is cached
+    // per source so the prompt carries excerpts, not just titles. The chat
+    // endpoint additionally gap-fills anything still missing at send time.
+    const byId = new Map(results.map((r) => [r.id, r]));
+    setExtractStatus(Object.fromEntries(ids.map((id) => [id, "working"])));
+    ids.forEach((id) => { const src = byId.get(id); if (src) void runExtract(src); });
+    setChatLog([{ role: "system", content: `Session ${s.session_id} — extracting ${ids.length} sources in the background…` }]);
     setView("chat");
   }
 
@@ -129,7 +146,7 @@ export default function App() {
 
   async function sendChat(text: string) {
     const q = text.trim();
-    if (!sessionId || !q || streaming) return;
+    if (!sessionId || !q || streaming || extracting) return;
     setChatLog((l) => [...l, { role: "user", content: q }]);
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -180,6 +197,11 @@ export default function App() {
   const chatSources = chatSourceIds
     .map((id) => results.find((r) => r.id === id))
     .filter((r): r is SearchResult => Boolean(r));
+  // Send waits for background extraction: only done/error states release it,
+  // so the prompt always carries excerpts (backend gap-fills any residual miss).
+  const extracting =
+    chatSourceIds.length > 0 &&
+    chatSourceIds.some((id) => extractStatus[id] !== "done" && extractStatus[id] !== "error");
 
   const filterPanel = showFilters ? (
     <FilterPanel provider={provider} setProvider={setProvider} count={count} setCount={setCount}
@@ -279,6 +301,7 @@ export default function App() {
         <ChatView sessionId={sessionId} topic={topic} setTopic={setTopic}
           purpose={purpose} setPurpose={setPurpose} domainKw={domainKw} setDomainKw={setDomainKw}
           model={model} setModel={setModel} models={models} sources={chatSources}
+          statusById={extractStatus} onRetryExtract={(s) => runExtract(s)} extracting={extracting}
           log={chatLog} streaming={streaming} onSend={(t) => sendChat(t)} onStop={stopChat}
           onBackToSearch={() => setView("search")} />
       )}

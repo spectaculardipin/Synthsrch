@@ -17,6 +17,9 @@ interface Props {
   model: string; setModel: (s: string) => void;
   models: string[];
   sources: SearchResult[];
+  statusById: Record<string, "working" | "done" | "error">;
+  onRetryExtract: (s: SearchResult) => void;
+  extracting: boolean;
   log: ChatMessage[];
   streaming: boolean;
   onSend: (text: string) => void;
@@ -51,7 +54,7 @@ export function ChatView(p: Props) {
   }
 
   function send() {
-    if (!draft.trim() || p.streaming) return;
+    if (!draft.trim() || p.streaming || p.extracting) return;
     p.onSend(draft.trim());
     setDraft("");
     requestAnimationFrame(() => taRef.current?.focus());
@@ -103,13 +106,25 @@ export function ChatView(p: Props) {
       {/* Sources rail (Perplexity pattern: grounding stays visible) */}
       {p.sources.length > 0 && (
         <div className="flex gap-2 overflow-x-auto py-2.5" role="list" aria-label="Grounded sources">
-          {p.sources.map((s, i) => (
-            <a key={s.id} role="listitem" href={s.url} target="_blank" rel="noreferrer" title={s.title}
-              className="shrink-0 max-w-56 border border-neutral-200 rounded-xl px-2.5 py-1.5 hover:border-neutral-800 bg-white">
-              <span className="text-[11px] font-mono text-neutral-500">[S{i + 1}] {s.publisher}</span>
-              <span className="block text-xs truncate">{s.title || s.url}</span>
-            </a>
-          ))}
+          {p.sources.map((s, i) => {
+            const st = p.statusById[s.id] ?? "working";
+            const badge =
+              st === "done" ? <span className="text-green-700" title="Full text extracted">✓</span> :
+              st === "error" ? <span className="text-red-600" title="Extraction failed — click to retry">✗</span> :
+              <span className="text-amber-500" title="Extracting full text…">…</span>;
+            const card = (
+              <>
+                <span className="text-[11px] font-mono text-neutral-500">[S{i + 1}] {s.publisher} {badge}</span>
+                <span className="block text-xs truncate">{s.title || s.url}</span>
+              </>
+            );
+            const cls = "shrink-0 max-w-56 border border-neutral-200 rounded-xl px-2.5 py-1.5 hover:border-neutral-800 bg-white text-left";
+            return st === "error" ? (
+              <button key={s.id} role="listitem" onClick={() => p.onRetryExtract(s)} title="Extraction failed — retry" className={cls}>{card}</button>
+            ) : (
+              <a key={s.id} role="listitem" href={s.url} target="_blank" rel="noreferrer" title={s.title} className={cls}>{card}</a>
+            );
+          })}
         </div>
       )}
 
@@ -150,20 +165,24 @@ export function ChatView(p: Props) {
       {/* Docked composer */}
       <div className="sticky bottom-0 pt-3 pb-1 bg-gradient-to-b from-transparent via-white/90 to-white">
         <div className="flex items-end gap-2 border border-neutral-800 rounded-[28px] bg-white px-4 py-2 focus-within:ring-1 focus-within:ring-neutral-800">
-          <textarea ref={taRef} rows={1} value={draft} disabled={!p.sessionId}
+          <textarea ref={taRef} rows={1} value={draft} disabled={!p.sessionId || p.extracting}
             onChange={(e) => { setDraft(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px"; }}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder={p.sessionId ? "Ask grounded on the sources above…" : "Export sources from search to start"}
+            placeholder={!p.sessionId ? "Export sources from search to start" : p.extracting ? "Extracting source texts…" : "Ask grounded on the sources above…"}
             aria-label="Chat message" className="flex-1 resize-none outline-none text-[15px] leading-relaxed max-h-40 bg-transparent disabled:text-neutral-400" />
           {p.streaming ? (
             <button onClick={p.onStop} aria-label="Stop generating"
               className="w-9 h-9 shrink-0 rounded-full bg-neutral-900 text-white text-sm">■</button>
           ) : (
-            <button onClick={send} disabled={!p.sessionId || !draft.trim()} aria-label="Send message"
+            <button onClick={send} disabled={!p.sessionId || !draft.trim() || p.extracting} aria-label="Send message"
               className="w-9 h-9 shrink-0 rounded-full bg-neutral-900 text-white disabled:opacity-30">↑</button>
           )}
         </div>
-        <p className="pt-1.5 text-center text-[11px] text-neutral-400">Grounded in your selected sources · citations [S1] link claims to evidence</p>
+        <p className="pt-1.5 text-center text-[11px] text-neutral-400">{
+          p.extracting
+            ? `Extracting full text… ${p.sources.filter((s) => p.statusById[s.id] === "done").length}/${p.sources.length} ready`
+            : "Grounded in your selected sources · citations [S1] link claims to evidence"
+        }</p>
       </div>
     </main>
   );
