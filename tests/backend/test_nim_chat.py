@@ -89,10 +89,10 @@ def test_stream_forwards_reasoning_and_content(tmp_path, monkeypatch):
 def test_chat_persists_user_message(tmp_path, monkeypatch):
     _isolate(tmp_path)
 
-    async def fake_stream(model, system, user, max_tokens=4096):
+    async def fake_stream(provider, model, system, user, max_tokens=4096):
         yield ("content", "Hi.")
 
-    monkeypatch.setattr(appmod, "stream_chat", fake_stream)
+    monkeypatch.setattr(appmod, "stream_chat_llm", fake_stream)
     with TestClient(app) as c:
         sid = c.post("/api/sessions", json={"topic": "t", "purpose": "p"}).json()["session_id"]
         body = []

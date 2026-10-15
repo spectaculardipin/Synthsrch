@@ -3,9 +3,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
+
+if not logging.getLogger().handlers:
+    # Uvicorn only configures its own loggers — without this, our
+    # "llm fallback" / router lines never reach the server output.
+    logging.basicConfig(level=logging.INFO)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,15 +21,19 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from .chat import build_system_prompt, build_user_prompt, stream_chat
+from .chat import build_system_prompt_v2, build_user_prompt, sanitize_error, stream_chat_llm
+from .chat import stream_chat as _nim_stream_chat  # back-compat for older tests/tools
 from .config import get_settings
 from .db import init_db, session_factory
 from .extract import LocalExtractor
+from .llm import parse_ref
 from .models import Message, ResultCache, Search, Session, SettingKV
 from .providers.base import SearchRequest, SearchResult, apply_keyword_filter, slice_rank
 from .search_service import run_search
 
-from contextlib import asynccontextmanager
+# Alias kept so existing monkeypatches on `synthsrch.app.stream_chat` keep working.
+# New code calls stream_chat_llm; this wrapper preserves the old 4-arg shape.
+stream_chat = _nim_stream_chat
 
 
 @asynccontextmanager
@@ -84,7 +95,20 @@ async def health():
 
 @app.get("/api/models")
 async def models():
-    return {"models": get_settings().NIM_MODELS, "default": get_settings().nim_model}
+    s = get_settings()
+    from .llm import LLM_PROVIDERS, model_for, provider_has_key
+
+    return {
+        "models": s.NIM_MODELS,
+        "default": s.llm_model or s.nim_model,
+        "providers": list(LLM_PROVIDERS),
+        "provider": s.llm_provider,
+        # Pre-entered provider:model pairs for the chat-menu widget.
+        "configured": [
+            {"provider": p, "model": model_for(p), "hasKey": provider_has_key(p)}
+            for p in LLM_PROVIDERS
+        ],
+    }
 
 
 class SearchResponse(BaseModel):
@@ -183,6 +207,22 @@ class ChatCreate(BaseModel):
     domainKeywords: list[str] = Field(default_factory=list, max_length=20)
     sourceIds: list[str] = Field(default_factory=list, max_length=20)
     model: str | None = None
+    provider: str | None = None
+
+
+def _combine_ref(provider: str | None, model: str | None) -> str:
+    s = get_settings()
+    prov = (provider or s.llm_provider or "nim").lower()
+    mod = (model or s.llm_model or s.nim_model or "").strip()
+    if not mod:
+        return ""
+    if ":" in mod:
+        head, tail = mod.split(":", 1)
+        from .llm import LLM_PROVIDERS
+
+        if head.strip().lower() in LLM_PROVIDERS and tail.strip():
+            return f"{head.strip().lower()}:{tail.strip()}"
+    return f"{prov}:{mod}" if prov else mod
 
 
 @app.post("/api/sessions")
@@ -191,7 +231,7 @@ async def create_session(body: ChatCreate):
     async with session_factory()() as db:
         db.add(Session(id=sid, topic=body.topic, purpose=body.purpose,
                        domain_keywords=json.dumps(body.domainKeywords),
-                       model=body.model or get_settings().nim_model,
+                       model=_combine_ref(body.provider, body.model),
                        source_ids=json.dumps(body.sourceIds)))
         await db.commit()
     return {"session_id": sid}
@@ -201,7 +241,8 @@ class ChatMessage(BaseModel):
     query: str = Field(max_length=4000)
     sourceIds: list[str] | None = None
     model: str | None = None
-    max_tokens: int = 4096
+    provider: str | None = None
+    max_tokens: int = Field(default=4096, ge=1, le=16384)
 
 
 async def _gap_fill_extracts(pairs: list[tuple[str, str]]) -> list[tuple[str, str, str]]:
@@ -245,7 +286,14 @@ async def chat(sid: str, body: ChatMessage):
                 missing.append((row.id, row.url))
         topic, purpose = sess.topic, sess.purpose
         kws = json.loads(sess.domain_keywords or "[]")
-        model = body.model or sess.model or get_settings().nim_model
+        # Resolve provider:model — body wins, else session ref, else global defaults.
+        s = get_settings()
+        sess_prov, sess_mod = parse_ref(sess.model or "", s.llm_provider, s.llm_model or s.nim_model)
+        prov = (body.provider or sess_prov or s.llm_provider or "nim").lower()
+        mod = (body.model or sess_mod or s.llm_model or s.nim_model)
+        # A bare "provider:model" in model overrides provider.
+        prov2, mod2 = parse_ref(mod, prov, mod)
+        prov, mod = prov2, mod2
         db.add(Message(id=f"m-{uuid.uuid4().hex[:10]}", session_id=sid, role="user", content=body.query))
         # Safety net: guarantee excerpts for every source. The UI pre-extracts in
         # the background after export, but a fast Send (or reload) can beat it.
@@ -261,22 +309,28 @@ async def chat(sid: str, body: ChatMessage):
                     row.extract_via = via
         await db.commit()
 
-    system = build_system_prompt(topic, purpose, kws, len(sources))
+    system = build_system_prompt_v2(topic, purpose, kws, len(sources))
     user = build_user_prompt(body.query, sources, extracts)
 
     async def gen():
         full: list[str] = []
         try:
-            async for kind, text in stream_chat(model, system, user, body.max_tokens):
+            async for kind, text in stream_chat_llm(prov, mod, system, user, body.max_tokens):
                 if kind == "content":
                     full.append(text)
                     yield f"data: {json.dumps({'delta': text})}\n\n"
+                elif kind == "notice":
+                    # Router switch: show in chat AND persist so resume keeps history.
+                    yield f"data: {json.dumps({'notice': text})}\n\n"
+                    async with session_factory()() as db2:
+                        db2.add(Message(id=f"m-{uuid.uuid4().hex[:10]}", session_id=sid, role="notice", content=text))
+                        await db2.commit()
                 else:
                     yield f"data: {json.dumps({'reasoning': text})}\n\n"
         except PermissionError as e:
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            yield f"data: {json.dumps({'error': sanitize_error(str(e))})}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'error': f'nim error: {e}'})}\n\n"
+            yield f"data: {json.dumps({'error': sanitize_error(f'{prov} error: {e}')})}\n\n"
         finally:
             text = "".join(full)
             if text:
@@ -286,6 +340,122 @@ async def chat(sid: str, body: ChatMessage):
             yield "data: [DONE]\n\n"
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@app.get("/api/sessions")
+async def list_sessions():
+    async with session_factory()() as db:
+        rows = (await db.execute(select(Session).order_by(Session.created_at.desc()).limit(100))).scalars().all()
+    return {"sessions": [
+        {"id": s.id, "topic": s.topic, "model": s.model, "created_at": str(s.created_at)}
+        for s in rows
+    ]}
+
+
+@app.get("/api/sessions/{sid}")
+async def get_session(sid: str):
+    async with session_factory()() as db:
+        sess = await db.get(Session, sid)
+        if not sess:
+            return err("NOT_FOUND", "session not found", 404)
+        msgs = (await db.execute(
+            select(Message).where(Message.session_id == sid).order_by(Message.created_at.asc()).limit(200)
+        )).scalars().all()
+        src_ids: list[str] = json.loads(sess.source_ids or "[]")
+        srcs = []
+        for rid in src_ids[:20]:
+            row = await db.get(ResultCache, rid)
+            if row:
+                srcs.append({"id": row.id, "title": row.title, "url": row.url,
+                             "publisher": row.publisher, "rank": row.rank})
+    prov, mod = parse_ref(sess.model or "", get_settings().llm_provider, "")
+    return {
+        "session_id": sess.id, "topic": sess.topic, "purpose": sess.purpose,
+        "domainKeywords": json.loads(sess.domain_keywords or "[]"),
+        "model": mod, "provider": prov, "modelRef": sess.model,
+        "sourceIds": src_ids, "sources": srcs,
+        "messages": [{"role": m.role, "content": m.content} for m in msgs],
+    }
+
+
+@app.delete("/api/sessions")
+async def delete_all_sessions():
+    from sqlalchemy import delete as sa_delete
+
+    async with session_factory()() as db:
+        await db.execute(sa_delete(Message))
+        await db.execute(sa_delete(Session))
+        await db.commit()
+    return {"deleted": "all"}
+
+
+@app.delete("/api/sessions/{sid}")
+async def delete_session(sid: str):
+    async with session_factory()() as db:
+        sess = await db.get(Session, sid)
+        if not sess:
+            return err("NOT_FOUND", "session not found", 404)
+        msgs = (await db.execute(select(Message).where(Message.session_id == sid))).scalars().all()
+        for m in msgs:
+            await db.delete(m)
+        await db.delete(sess)
+        await db.commit()
+    return {"deleted": sid}
+
+
+class SourcesPatch(BaseModel):
+    add: list[str | dict] = Field(default_factory=list, max_length=20)
+    remove: list[str] = Field(default_factory=list, max_length=20)
+
+
+@app.patch("/api/sessions/{sid}/sources")
+async def patch_sources(sid: str, body: SourcesPatch):
+    from urllib.parse import urlparse
+
+    from .providers.base import publisher_of, result_id
+
+    async with session_factory()() as db:
+        sess = await db.get(Session, sid)
+        if not sess:
+            return err("NOT_FOUND", "session not found", 404)
+        current: list[str] = json.loads(sess.source_ids or "[]")
+        remove = set(body.remove or [])
+        current = [i for i in current if i not in remove]
+        ex = LocalExtractor()
+        for item in (body.add or [])[:10]:
+            url = item if isinstance(item, str) and item.startswith("http") else (
+                item.get("url", "") if isinstance(item, dict) else "")
+            if url:
+                try:
+                    u = urlparse(url)
+                    if u.scheme not in ("http", "https") or not u.hostname:
+                        continue
+                except Exception:
+                    continue
+                rid = result_id("pasted", url)
+                row = await db.get(ResultCache, rid)
+                title = item.get("title", url[:300]) if isinstance(item, dict) else url[:300]
+                if row is None:
+                    row = ResultCache(id=rid, search_id="", rank=0, title=title,
+                                      url=url, publisher=publisher_of(url), snippet="")
+                    db.add(row)
+                if rid not in current and len(current) < 10:
+                    current.append(rid)
+                # Best-effort extract so chat gap-fill rarely fires.
+                if not row.extract_text:
+                    try:
+                        text, via = await ex.extract(url, allow_fallback=False)
+                        row.extract_text = text[: get_settings().extract_max_chars]
+                        row.extract_via = via
+                    except Exception:
+                        pass
+            elif isinstance(item, str):
+                row = await db.get(ResultCache, item)
+                if row and item not in current and len(current) < 10:
+                    current.append(item)
+        sess.source_ids = json.dumps(current)
+        await db.commit()
+        return {"session_id": sid, "sourceIds": current}
 
 
 @app.get("/api/history")
@@ -308,13 +478,22 @@ async def get_settings_api():
 
     return {
         "nim_base_url": s.nim_base_url, "nim_model": s.nim_model, "models": s.NIM_MODELS,
+        "llm_provider": s.llm_provider, "llm_model": s.llm_model,
+        "llm_models": {
+            "nim": s.nim_model, "openai": s.openai_model, "anthropic": s.anthropic_model,
+            "gemini": s.gemini_model, "openrouter": s.openrouter_model,
+        },
         "keys_present": {
             "nim": bool(s.nim_api_key), "tavily": bool(s.tavily_api_key), "exa": bool(s.exa_api_key),
             "serper": bool(s.serper_api_key), "linkup": bool(s.linkup_api_key), "firecrawl": bool(s.firecrawl_api_key),
+            "openai": bool(s.openai_api_key), "anthropic": bool(s.anthropic_api_key),
+            "gemini": bool(s.gemini_api_key), "openrouter": bool(s.openrouter_api_key),
         },
         "keys_masked": {
             "nim": mask(s.nim_api_key), "tavily": mask(s.tavily_api_key), "exa": mask(s.exa_api_key),
             "serper": mask(s.serper_api_key), "linkup": mask(s.linkup_api_key), "firecrawl": mask(s.firecrawl_api_key),
+            "openai": mask(s.openai_api_key), "anthropic": mask(s.anthropic_api_key),
+            "gemini": mask(s.gemini_api_key), "openrouter": mask(s.openrouter_api_key),
         },
     }
 
@@ -322,6 +501,16 @@ async def get_settings_api():
 class SettingsUpdate(BaseModel):
     nim_api_key: str | None = Field(default=None, max_length=500)
     nim_model: str | None = Field(default=None, max_length=200)
+    llm_provider: str | None = Field(default=None, max_length=32)
+    llm_model: str | None = Field(default=None, max_length=200)
+    openai_model: str | None = Field(default=None, max_length=200)
+    anthropic_model: str | None = Field(default=None, max_length=200)
+    gemini_model: str | None = Field(default=None, max_length=200)
+    openrouter_model: str | None = Field(default=None, max_length=200)
+    openai_api_key: str | None = Field(default=None, max_length=500)
+    anthropic_api_key: str | None = Field(default=None, max_length=500)
+    gemini_api_key: str | None = Field(default=None, max_length=500)
+    openrouter_api_key: str | None = Field(default=None, max_length=500)
     tavily_api_key: str | None = Field(default=None, max_length=500)
     exa_api_key: str | None = Field(default=None, max_length=500)
     serper_api_key: str | None = Field(default=None, max_length=500)

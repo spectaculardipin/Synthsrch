@@ -43,7 +43,7 @@ def test_chat_gap_fills_missing_extracts(tmp_path, monkeypatch):
     _seed_search()
     seen = {}
 
-    async def fake_stream(model, system, user, max_tokens=4096):
+    async def fake_stream(provider, model, system, user, max_tokens=4096):
         seen["user"] = user
         yield ("content", "Answer.")
 
@@ -51,7 +51,7 @@ def test_chat_gap_fills_missing_extracts(tmp_path, monkeypatch):
         assert pairs == [("exa-1", "https://example.com/1")]
         return [("exa-1", "FULL EXTRACTED BODY", "trafilatura")]
 
-    monkeypatch.setattr(appmod, "stream_chat", fake_stream)
+    monkeypatch.setattr(appmod, "stream_chat_llm", fake_stream)
     monkeypatch.setattr(appmod, "_gap_fill_extracts", fake_gap_fill)
     with TestClient(app) as c:
         sid = c.post("/api/sessions",
@@ -79,7 +79,7 @@ def test_chat_skips_gap_fill_when_cached(tmp_path, monkeypatch):
     _seed_search()
     called = []
 
-    async def fake_stream(model, system, user, max_tokens=4096):
+    async def fake_stream(provider, model, system, user, max_tokens=4096):
         yield ("content", "Answer.")
 
     async def fake_gap_fill(pairs):
@@ -90,7 +90,7 @@ def test_chat_skips_gap_fill_when_cached(tmp_path, monkeypatch):
         return ("CACHED VIA ENDPOINT", "trafilatura")
 
     from synthsrch import extract as exmod
-    monkeypatch.setattr(appmod, "stream_chat", fake_stream)
+    monkeypatch.setattr(appmod, "stream_chat_llm", fake_stream)
     monkeypatch.setattr(appmod, "_gap_fill_extracts", fake_gap_fill)
     monkeypatch.setattr(exmod.LocalExtractor, "extract", fake_extract)
     with TestClient(app) as c:

@@ -37,6 +37,22 @@ class Settings(BaseSettings):
     nim_api_key: str = ""
     nim_model: str = "nvidia/nemotron-3.5-lightning-30b-a3b"
 
+    # V2 multi-LLM: provider id + free-text model (user types any model card name).
+    llm_provider: str = "nim"
+    llm_model: str = ""
+    openai_api_key: str = ""
+    anthropic_api_key: str = ""
+    gemini_api_key: str = ""
+    openrouter_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    # Per-provider default models for the auto-router. Empty = provider skipped
+    # in fallback (generic llm_model is used as a last resort when set).
+    openai_model: str = ""
+    anthropic_model: str = ""
+    gemini_model: str = ""
+    openrouter_model: str = ""
+
     tavily_api_key: str = ""
     exa_api_key: str = ""
     serper_api_key: str = ""

@@ -8,9 +8,13 @@ export interface SearchResult {
   snippet?: string;
 }
 
-export type Provider = "tavily" | "exa" | "serper" | "linkup" | "firecrawl";
+export type Provider = "tavily" | "exa" | "serper" | "linkup" | "firecrawl" | "auto";
 
-export const PROVIDERS: Provider[] = ["tavily", "exa", "serper", "linkup", "firecrawl"];
+export const PROVIDERS: Provider[] = ["auto", "tavily", "exa", "serper", "linkup", "firecrawl"];
+
+export type LlmProvider = "nim" | "openai" | "anthropic" | "gemini" | "openrouter";
+
+export const LLM_PROVIDERS: LlmProvider[] = ["nim", "openai", "anthropic", "gemini", "openrouter"];
 
 export function filterResults<T extends { title: string; snippet?: string }>(
   results: T[],

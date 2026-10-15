@@ -87,6 +87,15 @@ def assert_public_url(url: str) -> str:
     return url
 
 
+def _is_soft_block(e: Exception) -> bool:
+    """True for bot-style refusals worth retrying in a real browser."""
+    import httpx as _httpx
+
+    resp = getattr(e, "response", None)
+    status = getattr(resp, "status_code", None)
+    return status in (401, 403, 429)
+
+
 class LocalExtractor:
     async def fetch_html(self, url: str, client: httpx.AsyncClient | None = None) -> str:
         # SSRF guard on the entry URL and on every redirect hop (no auto-follow).
@@ -141,6 +150,22 @@ class LocalExtractor:
                 raise RuntimeError("crawl4ai returned empty content")
             return text
 
+    async def _extract_via_browser(self, url: str, cap: int, first_error: Exception | None = None) -> tuple[str, str]:
+        try:
+            async with _crawl_semaphore():
+                text = await self.to_text_crawl4ai(url)
+        except Exception as e:
+            if first_error is not None and _is_soft_block(first_error):
+                raise RuntimeError(
+                    "site refused automated reading (HTTP "
+                    f"{getattr(getattr(first_error, 'response', None), 'status_code', '?')}) — "
+                    "login-walled or bot-blocked even for browsers; try another source"
+                ) from e
+            raise
+        if not text or len(text.strip()) < 1:
+            raise RuntimeError("crawl4ai returned empty content")
+        return text[:cap], "crawl4ai"
+
     async def extract(self, url: str, max_chars: int | None = None, allow_fallback: bool = True) -> tuple[str, str]:
         """Returns (text, via). Raises on failure.
 
@@ -149,16 +174,23 @@ class LocalExtractor:
         """
         assert_public_url(url)  # single choke point: covers trafilatura and crawl4ai paths
         cap = max_chars or get_settings().extract_max_chars
-        html = await self.fetch_html(url)
+        try:
+            html = await self.fetch_html(url)
+        except Exception as e:
+            # Soft bot-blocks (401/403/429) deserve the real-browser path — a
+            # Chromium fetch often passes where a plain httpx GET is refused
+            # (verified: instagram 403 → crawl4ai success). Hard failures
+            # (404, DNS, SSRF-guard ValueError) propagate immediately.
+            if allow_fallback and _is_soft_block(e):
+                return await self._extract_via_browser(url, cap, first_error=e)
+            raise
         text = self.to_text_trafilatura(html, url)
         via = "trafilatura"
         # Short-but-complete pages (e.g. example.com ≈ 150 chars) must NOT take
         # the slow browser path. Only near-empty results (<100) trigger it —
         # JS-rendered pages typically yield None here.
         if allow_fallback and (not text or len(text.strip()) < 100):
-            async with _crawl_semaphore():
-                text = await self.to_text_crawl4ai(url)
-            via = "crawl4ai"
+            return await self._extract_via_browser(url, cap)
         if not text:
             raise RuntimeError("trafilatura returned empty content")
         return text[:cap], via

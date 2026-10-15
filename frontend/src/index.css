@@ -6,6 +6,48 @@ body { @apply bg-white text-neutral-900 antialiased; }
 .card-note { @apply border border-neutral-800 rounded-[20px] bg-white p-4 shadow-sm hover:shadow-md hover:-translate-y-px transition-all cursor-pointer; }
 .input-pill { @apply border border-neutral-800 rounded-full px-5 py-2.5 w-full outline-none focus:ring-1 focus:ring-neutral-800 bg-neutral-100 placeholder:italic; }
 
+/* Pro markdown body (Claude/Gemini-grade): headings, bullets, code, tables */
+.markdown-body { @apply text-neutral-900; }
+.markdown-body > *:first-child { margin-top: 0; }
+.markdown-body h1 { @apply font-serif text-2xl mt-5 mb-2; }
+.markdown-body h2 { @apply font-serif text-xl mt-5 mb-2; }
+.markdown-body h3 { @apply font-semibold text-base mt-4 mb-1.5; }
+.markdown-body p { @apply my-2 whitespace-pre-wrap; }
+.markdown-body ul { @apply list-disc pl-6 my-2 space-y-1; }
+.markdown-body ol { @apply list-decimal pl-6 my-2 space-y-1; }
+.markdown-body li { @apply leading-relaxed; }
+.markdown-body strong { @apply font-semibold; }
+.markdown-body code { @apply font-mono text-[13px] bg-neutral-100 border border-neutral-200 rounded px-1; }
+.markdown-body pre { @apply bg-neutral-950 text-neutral-100 rounded-xl p-3 overflow-x-auto my-3; }
+.markdown-body pre code { @apply bg-transparent border-0 p-0 text-neutral-100; }
+.markdown-body table { @apply w-full text-sm my-3 border-collapse; }
+.markdown-body th { @apply text-left font-semibold border-b border-neutral-300 pb-1 pr-3; }
+.markdown-body td { @apply border-b border-neutral-200 py-1.5 pr-3 align-top; }
+.markdown-body blockquote { @apply border-l-2 border-neutral-300 pl-3 my-2 text-neutral-700; }
+.markdown-body a { @apply underline underline-offset-2; }
+/* Inline citation badges: tiny, glued to the sentence, never a block. */
+.markdown-body .cite-badge {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  line-height: 1;
+  vertical-align: super;
+  background: #f5f5f5;
+  border: 1px solid #d4d4d4;
+  border-radius: 4px;
+  padding: 0 3px;
+  margin: 0 1px;
+  white-space: nowrap;
+}
+
+/* Hide scrollbars but keep scrolling (wheel, touch, keyboard, programmatic). */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Streaming caret: cheapest "alive" signal while tokens arrive */
 .caret::after {
   content: "";

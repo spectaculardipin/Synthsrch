@@ -71,3 +71,5 @@ def test_input_caps_rejected_with_422():
     r = c.post("/api/search", json={"query": "q", "provider": "exa",
                                     "keywords": ["k"] * 21})
     assert r.status_code == 422
+    r = c.post("/api/sessions/sess-x/chat", json={"query": "q", "max_tokens": 999999})
+    assert r.status_code == 422
