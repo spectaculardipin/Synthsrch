@@ -117,32 +117,40 @@ install.ps1              → Windows one-step installer
 
 ## Install & run
 
+Prerequisites: Windows 10/11. Nothing else — Option A installs Python 3.12
+itself if missing (via winget) and fetches the code (git, or a zip download
+if git is absent).
+
+### Option A — one-liner (recommended)
+
+Paste into PowerShell. No files to download, nothing to double-click
+(double-clicking a `.ps1` opens Notepad — that path never works):
+
 ```powershell
-# 1. Get the code
-git clone https://github.com/spectaculardipin/Synthsrch.git
-cd Synthsrch
-
-# 2. Install (use `py -m pip` if bare `pip` isn't on PATH;
-#    the trailing `.` means "the package in this folder")
-py -m pip install .
-
-# 3. Browser engine for the JS-page extraction fallback (~300MB, one time)
-crawl4ai-setup
-
-# 4. Launch — opens http://127.0.0.1:8765
-#    (if `synthsrch` is not recognized, open a NEW terminal and retry,
-#    or use the fallback `py -m synthsrch` which never needs PATH)
-synthsrch
-
-# handy variants
-synthsrch --port 8765 --no-browser
-synthsrch doctor        # python, exe PATH status, db path, key presence
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/spectaculardipin/Synthsrch/main/bootstrap.ps1 | iex"
 ```
 
-Or run the one-step helper (checks Python version, repo folder, and
-adds the Python `Scripts` dir to your user PATH so `synthsrch` resolves):
+This installs Python if needed, gets the code, runs `pip install .`, adds
+Python `Scripts` to your user PATH, installs the browser engine (~300MB),
+and verifies with `synthsrch doctor`. Then launch:
 
 ```powershell
+synthsrch          # opens http://127.0.0.1:8765
+py -m synthsrch    # fallback: same app, works in any terminal, PATH or not
+```
+
+If `synthsrch` is not recognized, open a NEW terminal and retry (PATH
+changes need one) — or just use the `py -m synthsrch` fallback.
+
+### Option B — manual (you already have Python 3.11+ and the code)
+
+The helper `.\install.ps1` **replaces** the manual commands below: run it from
+the repo root *instead of* the manual steps, not after them. It does NOT
+install Python itself — it errors clearly if Python is missing (use Option A then).
+
+```powershell
+git clone https://github.com/spectaculardipin/Synthsrch.git
+cd Synthsrch
 .\install.ps1
 ```
 
@@ -150,6 +158,20 @@ If Windows blocks the script (`running scripts is disabled`), use:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+Or fully manual:
+
+```powershell
+git clone https://github.com/spectaculardipin/Synthsrch.git
+cd Synthsrch
+py -m pip install .   # trailing `.` means "the package in this folder"
+crawl4ai-setup        # browser engine for JS pages, ~300MB, one time (optional)
+synthsrch             # opens http://127.0.0.1:8765 (fallback: py -m synthsrch)
+
+# handy variants
+synthsrch --port 8765 --no-browser
+synthsrch doctor      # python, exe PATH status, db path, key presence
 ```
 
 No Docker, no background services. The SQLite database is created on first run at

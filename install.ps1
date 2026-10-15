@@ -33,7 +33,7 @@ py -m pip install .
 
 # 3. Entry-point scripts (synthsrch, crawl4ai-setup) land in Python Scripts dir,
 # which is often missing from PATH on fresh Windows installs. Fix that here.
-$scriptsDir = (py -c 'import sysconfig; print(sysconfig.get_path("scripts"))').Trim()
+$scriptsDir = (py -c "import sysconfig; print(sysconfig.get_path('scripts'))").Trim()
 Write-Host "Scripts dir: $scriptsDir"
 $sessionHasIt = ($env:Path -split ';') -contains $scriptsDir
 if (-not $sessionHasIt) { $env:Path += ";$scriptsDir" }
