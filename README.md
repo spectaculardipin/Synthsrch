@@ -146,6 +146,12 @@ adds the Python `Scripts` dir to your user PATH so `synthsrch` resolves):
 .\install.ps1
 ```
 
+If Windows blocks the script (`running scripts is disabled`), use:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
 No Docker, no background services. The SQLite database is created on first run at
 `%APPDATA%\synthsrch\synthsrch.db` (or `~/.synthsrch/` elsewhere).
 
@@ -225,6 +231,8 @@ cd frontend; npm run build         # rebuild backend/synthsrch/static
 | `pyproject.toml not found` / `Directory '.' is not installable` | You ran install from the wrong folder. `cd Synthsrch` first (the folder containing `pyproject.toml`), then retry |
 | `pip` not recognized | Use `py -m pip install .` (Python ships via the `py` launcher) |
 | `synthsrch` / `crawl4ai-setup` is not recognized | Python `Scripts` dir isn't on PATH. Open a NEW terminal and retry (PATH changes need one); or run `.\install.ps1` again (it adds `Scripts` to your user PATH); or bypass PATH entirely with `py -m synthsrch` |
+| `.\install.ps1` cannot be loaded / running scripts is disabled | Fresh Windows blocks local scripts. Run `powershell -ExecutionPolicy Bypass -File .\install.ps1` (one-time bypass, no system change) |
+| `No module named synthsrch` from `py -m synthsrch` | The install went to a different Python (multiple installs on one machine). Check `py --version` vs `pip --version`, then install and run with the SAME launcher: `py -m pip install .` and `py -m synthsrch doctor` |
 | Port busy | The CLI auto-picks the next free port; or `synthsrch --port 8775` |
 | `MISSING_KEY` on search | Add that provider's key in Settings (v1 never falls back silently) |
 | `PROVIDER_ERROR 502` | Key invalid / credits exhausted / provider hiccup — retry or switch provider |
