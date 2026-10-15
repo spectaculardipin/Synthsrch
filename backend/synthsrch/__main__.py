@@ -39,9 +39,13 @@ def cmd_serve(port: int, no_browser: bool) -> int:
 
 
 def cmd_doctor() -> int:
+    import shutil
+
     from .config import get_settings
     s = get_settings()
     print(f"python: {sys.version.split()[0]}")
+    exe = shutil.which("synthsrch")
+    print(f"exe: {exe if exe else 'NOT ON PATH (use: py -m synthsrch)'}")
     print(f"db: {s.db_path} exists={s.db_path.exists()}")
     print(f"host/port: {s.host}/{s.port}")
     print(f"nim: {s.nim_base_url} model={s.nim_model} key={'set' if s.nim_api_key else 'MISSING'}")

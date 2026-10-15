@@ -122,21 +122,29 @@ install.ps1              → Windows one-step installer
 git clone https://github.com/spectaculardipin/Synthsrch.git
 cd Synthsrch
 
-# 2. Install (use `py -m pip` if bare `pip` isn't on PATH)
+# 2. Install (use `py -m pip` if bare `pip` isn't on PATH;
+#    the trailing `.` means "the package in this folder")
 py -m pip install .
 
 # 3. Browser engine for the JS-page extraction fallback (~300MB, one time)
 crawl4ai-setup
 
 # 4. Launch — opens http://127.0.0.1:8765
+#    (if `synthsrch` is not recognized, open a NEW terminal and retry,
+#    or use the fallback `py -m synthsrch` which never needs PATH)
 synthsrch
 
 # handy variants
 synthsrch --port 8765 --no-browser
-synthsrch doctor        # python, port, db path, key presence
+synthsrch doctor        # python, exe PATH status, db path, key presence
 ```
 
-Or run the one-step helper: `.\install.ps1`.
+Or run the one-step helper (checks Python version, repo folder, and
+adds the Python `Scripts` dir to your user PATH so `synthsrch` resolves):
+
+```powershell
+.\install.ps1
+```
 
 No Docker, no background services. The SQLite database is created on first run at
 `%APPDATA%\synthsrch\synthsrch.db` (or `~/.synthsrch/` elsewhere).
@@ -213,7 +221,10 @@ cd frontend; npm run build         # rebuild backend/synthsrch/static
 
 | Symptom | Fix |
 |---------|-----|
+| `ERROR: You must give at least one requirement to install` | The trailing `.` in `py -m pip install .` is part of the command (it means "install the package in this folder"). Re-run with the dot, from the repo root: `cd Synthsrch`, then `py -m pip install .` |
+| `pyproject.toml not found` / `Directory '.' is not installable` | You ran install from the wrong folder. `cd Synthsrch` first (the folder containing `pyproject.toml`), then retry |
 | `pip` not recognized | Use `py -m pip install .` (Python ships via the `py` launcher) |
+| `synthsrch` / `crawl4ai-setup` is not recognized | Python `Scripts` dir isn't on PATH. Open a NEW terminal and retry (PATH changes need one); or run `.\install.ps1` again (it adds `Scripts` to your user PATH); or bypass PATH entirely with `py -m synthsrch` |
 | Port busy | The CLI auto-picks the next free port; or `synthsrch --port 8775` |
 | `MISSING_KEY` on search | Add that provider's key in Settings (v1 never falls back silently) |
 | `PROVIDER_ERROR 502` | Key invalid / credits exhausted / provider hiccup — retry or switch provider |
