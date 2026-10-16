@@ -219,22 +219,38 @@ key (masked) and blanks never overwrite saved values.
 
 ## Usage
 
+![Search home](docs/images/01-search-home.png)
+
 1. **Search** — type a query, open ⚙ for provider (`auto` default) / count / rank
    bracket / keywords (`ANY`|`ALL`) / sub-topic. Results arrive as note cards;
    the `showing` line names the provider that answered.
+
+![Search results grid](docs/images/02-search-results.png)
+
 2. **Read** — click a card for clean text (`via trafilatura|crawl4ai`, char count
    shown) plus a **Read Article ↗** link. Filter further with *Search within
    these results* (free, local).
+
+![Extract reader with Read Article link](docs/images/03-extract-reader.png)
+
 3. **Synthesize** — check 2–5 cards → **Export → Chat**. Full text for every
    source is extracted automatically in the background (✓/…/✗ per source in
    the rail; Send unlocks when ready, failures retryable). Set topic, purpose,
    domain keywords, and model (or pick a saved pair from the `model:` widget);
    ask questions. Answers cite `[S1]`…`[Sn]`; a `⇄` pill explains any model
    switch and stays in history.
+
+![Grounded chat with sidebar, model widget, and citations](docs/images/04-chat-synthesis.png)
+
 4. **Manage sources mid-chat** — **Sources +/−**: remove duds, add from last
    results, run a new search, or paste any URL. The next answer uses the new set.
+
+![Sources drawer: current, last results, new search, paste URL](docs/images/05-sources-drawer.png)
+
 5. **Resume** — the sidebar lists every conversation across restarts, with
    per-chat delete and clear-all.
+
+![Settings with per-provider models and masked keys](docs/images/06-settings-keys.png)
 
 ## API reference (local)
 
